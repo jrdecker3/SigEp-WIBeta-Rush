@@ -309,7 +309,7 @@ with tab_add:
                 st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB 3 — MASS DELETE
+# TAB 3 — MASS DELETE  (fast: single form, no per-checkbox reruns)
 # ════════════════════════════════════════════════════════════════════════════
 with tab_bulk:
     st.markdown('<div class="section-hdr">Mass Delete</div>', unsafe_allow_html=True)
@@ -317,99 +317,132 @@ with tab_bulk:
     if not st.session_state.pnms:
         st.info("No PNMs in the database yet.")
     else:
-        # ── Quick-select buttons ──────────────────────────────────────────
-        st.markdown("**Select who to delete**, then hit the red button at the bottom.")
-        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+        # ── Pre-select shortcuts (outside form so they fire instantly) ────
+        st.markdown("**Step 1 — Use a shortcut or tick boxes below, then hit Delete.**")
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
         qa, qb, qc, qd, qe = st.columns(5)
         with qa:
-            if st.button("✅ Select all", use_container_width=True):
+            if st.button("✅ All", use_container_width=True):
                 st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms}
                 st.rerun()
         with qb:
-            if st.button("☐ Deselect all", use_container_width=True):
+            if st.button("☐ None", use_container_width=True):
                 st.session_state.selected_ids = set()
                 st.rerun()
         with qc:
-            if st.button("📬 Select responded", use_container_width=True):
+            if st.button("📬 Responded", use_container_width=True):
                 st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if p.get("dm_status") == "Responded"}
                 st.rerun()
         with qd:
-            if st.button("❌ Select not interested", use_container_width=True):
-                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if not p.get("reached") and p.get("dm_status","—") == "—"}
+            if st.button("⏳ Waiting", use_container_width=True):
+                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if p.get("dm_status") == "Waiting on response"}
                 st.rerun()
         with qe:
-            if st.button("⏳ Select waiting", use_container_width=True):
-                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if p.get("dm_status") == "Waiting on response"}
+            if st.button("🔕 Not contacted", use_container_width=True):
+                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if not p.get("reached") and p.get("dm_status","—") == "—"}
                 st.rerun()
 
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-        # ── Checkbox list ─────────────────────────────────────────────────
+        # ── Single form — all checkboxes submit together, zero mid-list reruns ──
         sorted_pnms = sorted(st.session_state.pnms, key=lambda p: (p.get("lname",""), p.get("fname","")))
 
-        for p in sorted_pnms:
-            ig_txt = f" · @{p['ig']}" if p.get("ig") else ""
-            meta   = f" · {p.get('hs','')}" if p.get("hs") else ""
-            label  = f"**{p.get('fname','')} {p.get('lname','')}**{ig_txt}{meta}"
-            badge  = STATUS_BADGE.get(p.get("dm_status","—"), ("badge-none","—"))[1]
+        with st.form("bulk_delete_form", clear_on_submit=False):
 
-            col_chk, col_lbl, col_badge = st.columns([0.3, 4, 1.2])
-            with col_chk:
-                checked = st.checkbox("", value=p["id"] in st.session_state.selected_ids,
-                                      key=f"bulk_{p['id']}", label_visibility="collapsed")
-                if checked:
-                    st.session_state.selected_ids.add(p["id"])
+            # Table header
+            st.markdown("""
+            <div style='display:grid;grid-template-columns:32px 1fr 160px 140px;
+                gap:0;padding:6px 4px;background:#f7f6f2;border-radius:8px 8px 0 0;
+                border:1px solid rgba(0,0,0,0.09);border-bottom:none;
+                font-size:11px;font-weight:600;color:#777;text-transform:uppercase;letter-spacing:.4px'>
+              <div></div>
+              <div>Name · Instagram · School</div>
+              <div>Status</div>
+              <div>Reached out</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Rows — rendered as pure HTML, only checkboxes are Streamlit widgets
+            checkbox_state = {}
+            for i, p in enumerate(sorted_pnms):
+                pid      = p["id"]
+                name     = f"{p.get('fname','')} {p.get('lname','')}"
+                ig_txt   = f"@{p['ig']}" if p.get("ig") else ""
+                hs_txt   = p.get("hs","")
+                meta     = " · ".join(filter(None, [ig_txt, hs_txt]))
+                badge_cls, badge_lbl = STATUS_BADGE.get(p.get("dm_status","—"), ("badge-none","—"))
+                reached_txt = "✅ Yes" if p.get("reached") else "—"
+                row_bg   = "#fff8f8" if pid in st.session_state.selected_ids else "white"
+                border_c = "#ffcccc" if pid in st.session_state.selected_ids else "rgba(0,0,0,0.09)"
+
+                col_chk, col_info, col_status, col_reached = st.columns([0.25, 3.5, 1.2, 1.1])
+
+                with col_chk:
+                    checkbox_state[pid] = st.checkbox(
+                        label=name,
+                        value=pid in st.session_state.selected_ids,
+                        key=f"bform_{pid}",
+                        label_visibility="collapsed"
+                    )
+                with col_info:
+                    st.markdown(
+                        f"<div style='padding:4px 0;font-size:13.5px;font-weight:600'>{name}"
+                        f"<span style='font-weight:400;color:#888;font-size:12px'>"
+                        f"{'  ·  ' + meta if meta else ''}</span></div>",
+                        unsafe_allow_html=True
+                    )
+                with col_status:
+                    st.markdown(
+                        f"<div style='padding:4px 0'><span class='badge {badge_cls}'>{badge_lbl}</span></div>",
+                        unsafe_allow_html=True
+                    )
+                with col_reached:
+                    st.markdown(
+                        f"<div style='padding:4px 0;font-size:13px;color:#555'>{reached_txt}</div>",
+                        unsafe_allow_html=True
+                    )
+
+                if i < len(sorted_pnms) - 1:
+                    st.markdown("<hr style='margin:0;border:none;border-top:1px solid rgba(0,0,0,0.06)'>", unsafe_allow_html=True)
+
+            # ── Submit row ────────────────────────────────────────────────
+            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+            # Count how many are currently ticked (based on saved state)
+            preview_count = len(st.session_state.selected_ids)
+            st.markdown(f"""
+            <div class="delete-zone">
+              <div class="delete-zone-title">⚠️ Danger zone</div>
+              <div class="delete-zone-sub">
+                {preview_count} PNM{'s' if preview_count != 1 else ''} currently selected.
+                Ticking boxes above updates the selection — then click the button to delete.
+                This cannot be undone. Export a CSV backup first if needed.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            submitted_delete = st.form_submit_button(
+                "🗑️  Apply selection & Delete",
+                type="primary",
+                use_container_width=True
+            )
+
+            if submitted_delete:
+                # Read all checkbox values from form submission
+                to_delete = {pid for pid, checked in checkbox_state.items() if checked}
+                n = len(to_delete)
+                if n == 0:
+                    st.warning("No PNMs selected — tick at least one box.")
                 else:
-                    st.session_state.selected_ids.discard(p["id"])
-            with col_lbl:
-                st.markdown(f"<div style='padding-top:6px;font-size:14px'>{label}</div>", unsafe_allow_html=True)
-            with col_badge:
-                cls = STATUS_BADGE.get(p.get("dm_status","—"), ("badge-none","—"))[0]
-                st.markdown(f"<div style='padding-top:6px'><span class='badge {cls}'>{badge}</span></div>", unsafe_allow_html=True)
-
-        # ── Delete bar ────────────────────────────────────────────────────
-        n_selected = len(st.session_state.selected_ids)
-        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div class="delete-zone">
-          <div class="delete-zone-title">⚠️ Danger zone</div>
-          <div class="delete-zone-sub">
-            {n_selected} PNM{'s' if n_selected != 1 else ''} selected.
-            {'Select at least one PNM above to delete.' if n_selected == 0 else 'This cannot be undone — export a CSV backup first if needed.'}
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if n_selected > 0:
-            # Two-step confirm
-            if not st.session_state.confirm_delete:
-                if st.button(f"🗑️  Delete {n_selected} selected PNM{'s' if n_selected != 1 else ''}",
-                             type="primary", use_container_width=True):
-                    st.session_state.confirm_delete = True
+                    st.session_state.pnms = [
+                        p for p in st.session_state.pnms if p["id"] not in to_delete
+                    ]
+                    save(st.session_state.pnms)
+                    st.session_state.selected_ids = set()
+                    st.session_state.confirm_delete = False
+                    st.success(f"✅ {n} PNM{'s' if n != 1 else ''} deleted.")
                     st.rerun()
-            else:
-                st.error(f"⚠️ Are you sure? This will permanently delete **{n_selected} PNM{'s' if n_selected != 1 else ''}** and cannot be undone.")
-                col_yes, col_no = st.columns(2)
-                with col_yes:
-                    if st.button("Yes, delete them", type="primary", use_container_width=True):
-                        st.session_state.pnms = [
-                            p for p in st.session_state.pnms
-                            if p["id"] not in st.session_state.selected_ids
-                        ]
-                        save(st.session_state.pnms)
-                        deleted = n_selected
-                        st.session_state.selected_ids = set()
-                        st.session_state.confirm_delete = False
-                        st.success(f"✅ {deleted} PNM{'s' if deleted != 1 else ''} deleted.")
-                        st.rerun()
-                with col_no:
-                    if st.button("Cancel", use_container_width=True):
-                        st.session_state.confirm_delete = False
-                        st.rerun()
-        else:
-            st.button("🗑️  Delete selected", disabled=True, use_container_width=True)
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 4 — IMPORT / EXPORT
