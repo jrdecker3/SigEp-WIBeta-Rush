@@ -6,16 +6,13 @@ Setup:
 
 Run:
     streamlit run app.py
-
-Share with team (Streamlit Community Cloud):
-    Push to GitHub → deploy at share.streamlit.io → share the URL
 """
 
 import streamlit as st
 import pandas as pd
 import json, os, datetime
 
-# ── Page config ──────────────────────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="SigEp Rush 2026",
     page_icon="🔴",
@@ -27,48 +24,30 @@ st.set_page_config(
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
-
 html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
-
-/* Hide default Streamlit chrome */
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding-top: 1.5rem !important; }
 
-/* Top banner */
 .top-banner {
     background: linear-gradient(135deg, #CC0000 0%, #990000 100%);
-    border-radius: 12px;
-    padding: 1.1rem 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 1.4rem;
-    box-shadow: 0 4px 18px rgba(204,0,0,0.25);
+    border-radius: 12px; padding: 1.1rem 1.5rem;
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 1.4rem; box-shadow: 0 4px 18px rgba(204,0,0,0.25);
 }
 .crest {
-    width: 44px; height: 44px;
-    background: rgba(255,255,255,0.18);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px; font-weight: 700; color: white;
-    letter-spacing: 1px; flex-shrink: 0;
+    width: 44px; height: 44px; background: rgba(255,255,255,0.18);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; color: white; letter-spacing: 1px; flex-shrink: 0;
 }
 .banner-title { color: white; font-size: 18px; font-weight: 600; line-height: 1.2; }
 .banner-sub   { color: rgba(255,255,255,0.75); font-size: 12px; margin-top: 2px; }
 
-/* Stat cards */
 .stat-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 1.25rem; }
-.stat-card {
-    background: white; border-radius: 10px;
-    border: 1px solid rgba(0,0,0,0.09);
-    padding: .85rem 1rem;
-}
+.stat-card { background: white; border-radius: 10px; border: 1px solid rgba(0,0,0,0.09); padding: .85rem 1rem; }
 .stat-card.accent { border-left: 3px solid #CC0000; }
-.stat-label { font-size: 11px; font-weight: 600; color: #777;
-    text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+.stat-label { font-size: 11px; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
 .stat-num { font-size: 26px; font-weight: 700; color: #1a1a1a; line-height: 1; }
 
-/* Section headers */
 .section-hdr {
     font-size: 13px; font-weight: 600; color: #444;
     text-transform: uppercase; letter-spacing: .5px;
@@ -76,51 +55,38 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
     padding-bottom: .4rem; border-bottom: 1px solid rgba(0,0,0,0.08);
 }
 
-/* Status badges */
-.badge {
-    display: inline-block; padding: 3px 10px;
-    border-radius: 20px; font-size: 12px; font-weight: 600;
+/* Mass delete warning box */
+.delete-zone {
+    background: #fff5f5; border: 1.5px solid #ffcccc;
+    border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem;
 }
-.badge-reached   { background:#e3f5e1; color:#1e7a1a; }
+.delete-zone-title { font-size: 13px; font-weight: 700; color: #b71c1c;
+    text-transform: uppercase; letter-spacing: .5px; margin-bottom: .4rem; }
+.delete-zone-sub { font-size: 13px; color: #666; margin-bottom: .75rem; }
+
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge-responded { background:#e3eeff; color:#1a4fa0; }
 .badge-read      { background:#fff3e0; color:#9a5c00; }
 .badge-waiting   { background:#ffeaea; color:#b71c1c; }
 .badge-none      { background:#f0efeb; color:#555; }
 
-/* PNM cards */
 .pnm-card {
     background: white; border-radius: 10px;
     border: 1px solid rgba(0,0,0,0.09);
     padding: .9rem 1.1rem; margin-bottom: .55rem;
-    transition: box-shadow .15s;
 }
-.pnm-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
-.pnm-name  { font-size: 15px; font-weight: 600; color: #1a1a1a; }
-.pnm-ig    { font-size: 13px; color: #CC0000; font-weight: 500; }
-.pnm-meta  { font-size: 12px; color: #888; margin-top: 3px; }
+.pnm-card.selected { border-color: #CC0000; background: #fff8f8; }
+.pnm-name { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+.pnm-ig   { font-size: 13px; color: #CC0000; font-weight: 500; }
+.pnm-meta { font-size: 12px; color: #888; margin-top: 3px; }
 
-/* Streamlit widget tweaks */
 div[data-testid="stCheckbox"] > label { font-size: 14px !important; }
 div[data-testid="stSelectbox"] > label { font-size: 12px !important; font-weight: 600 !important; }
 div[data-testid="stTextInput"] > label { font-size: 12px !important; font-weight: 600 !important; }
-.stButton > button {
-    border-radius: 7px !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-weight: 500 !important;
-}
-.stButton > button[kind="primary"] {
-    background: #CC0000 !important;
-    border-color: #CC0000 !important;
-}
-.stButton > button[kind="primary"]:hover {
-    background: #990000 !important;
-    border-color: #990000 !important;
-}
-div[data-testid="stExpander"] {
-    border: 1px solid rgba(0,0,0,0.09) !important;
-    border-radius: 10px !important;
-    background: white !important;
-}
+.stButton > button { border-radius: 7px !important; font-family: 'DM Sans', sans-serif !important; font-weight: 500 !important; }
+.stButton > button[kind="primary"] { background: #CC0000 !important; border-color: #CC0000 !important; }
+.stButton > button[kind="primary"]:hover { background: #990000 !important; border-color: #990000 !important; }
+div[data-testid="stExpander"] { border: 1px solid rgba(0,0,0,0.09) !important; border-radius: 10px !important; background: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -142,13 +108,17 @@ def new_id():
 
 if "pnms" not in st.session_state:
     st.session_state.pnms = load()
+if "selected_ids" not in st.session_state:
+    st.session_state.selected_ids = set()
+if "confirm_delete" not in st.session_state:
+    st.session_state.confirm_delete = False
 
 STATUS_OPTS = ["—", "Waiting on response", "Read", "Responded"]
 STATUS_BADGE = {
-    "—":                  ("badge-none",      "Not contacted"),
-    "Waiting on response":("badge-waiting",   "Waiting on response"),
-    "Read":               ("badge-read",      "Read"),
-    "Responded":          ("badge-responded", "Responded"),
+    "—":                   ("badge-none",      "Not contacted"),
+    "Waiting on response": ("badge-waiting",   "Waiting on response"),
+    "Read":                ("badge-read",      "Read"),
+    "Responded":           ("badge-responded", "Responded"),
 }
 
 def status_badge(s):
@@ -168,57 +138,40 @@ st.markdown("""
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 pnms = st.session_state.pnms
-total      = len(pnms)
-reached    = sum(1 for p in pnms if p.get("reached"))
-responded  = sum(1 for p in pnms if p.get("dm_status") == "Responded")
-waiting    = sum(1 for p in pnms if p.get("dm_status") == "Waiting on response")
-read_ct    = sum(1 for p in pnms if p.get("dm_status") == "Read")
+total     = len(pnms)
+reached   = sum(1 for p in pnms if p.get("reached"))
+responded = sum(1 for p in pnms if p.get("dm_status") == "Responded")
+waiting   = sum(1 for p in pnms if p.get("dm_status") == "Waiting on response")
+read_ct   = sum(1 for p in pnms if p.get("dm_status") == "Read")
 
 st.markdown(f"""
 <div class="stat-row">
-  <div class="stat-card accent">
-    <div class="stat-label">Total PNMs</div>
-    <div class="stat-num">{total}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Reached Out</div>
-    <div class="stat-num">{reached}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Responded</div>
-    <div class="stat-num">{responded}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Read / Seen</div>
-    <div class="stat-num">{read_ct}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Waiting</div>
-    <div class="stat-num">{waiting}</div>
-  </div>
+  <div class="stat-card accent"><div class="stat-label">Total PNMs</div><div class="stat-num">{total}</div></div>
+  <div class="stat-card"><div class="stat-label">Reached Out</div><div class="stat-num">{reached}</div></div>
+  <div class="stat-card"><div class="stat-label">Responded</div><div class="stat-num">{responded}</div></div>
+  <div class="stat-card"><div class="stat-label">Read / Seen</div><div class="stat-num">{read_ct}</div></div>
+  <div class="stat-card"><div class="stat-label">Waiting</div><div class="stat-num">{waiting}</div></div>
 </div>
 """, unsafe_allow_html=True)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab_list, tab_add, tab_import = st.tabs(["📋  PNM List", "➕  Add PNM", "📂  Import / Export"])
+tab_list, tab_add, tab_bulk, tab_import = st.tabs([
+    "📋  PNM List", "➕  Add PNM", "🗑️  Mass Delete", "📂  Import / Export"
+])
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 1 — PNM LIST
 # ════════════════════════════════════════════════════════════════════════════
 with tab_list:
-
-    # Search + filter bar
     col_s, col_f, col_r = st.columns([3, 1.5, 1])
     with col_s:
         search = st.text_input("🔍 Search", placeholder="Name, school, city, interests...", label_visibility="collapsed")
     with col_f:
-        filt = st.selectbox("Filter by status", ["All"] + STATUS_OPTS[1:] + ["Not contacted"], label_visibility="collapsed")
+        filt = st.selectbox("Filter", ["All", "Not contacted", "Waiting on response", "Read", "Responded"], label_visibility="collapsed")
     with col_r:
         sort_by = st.selectbox("Sort", ["Name", "Date added", "Status"], label_visibility="collapsed")
 
-    # Filter logic
     visible = list(st.session_state.pnms)
-
     if search:
         q = search.lower()
         visible = [p for p in visible if q in " ".join([
@@ -226,13 +179,11 @@ with tab_list:
             p.get("hs",""), p.get("city",""), p.get("interests",""),
             p.get("activities",""), p.get("notes","")
         ]).lower()]
-
     if filt != "All":
         if filt == "Not contacted":
             visible = [p for p in visible if not p.get("reached") and p.get("dm_status","—") == "—"]
         else:
             visible = [p for p in visible if p.get("dm_status","—") == filt]
-
     if sort_by == "Name":
         visible.sort(key=lambda p: (p.get("lname",""), p.get("fname","")))
     elif sort_by == "Date added":
@@ -244,93 +195,76 @@ with tab_list:
     st.markdown(f"<div style='font-size:12.5px;color:#888;margin-bottom:.75rem'>{len(visible)} of {total} PNMs</div>", unsafe_allow_html=True)
 
     if not visible:
-        st.info("No PNMs match your search. Try adjusting the filter or add someone in the Add PNM tab.")
-    else:
-        for idx, p in enumerate(visible):
-            real_idx = next((i for i, x in enumerate(st.session_state.pnms) if x["id"] == p["id"]), None)
-            if real_idx is None:
-                continue
+        st.info("No PNMs match your search. Adjust the filter or add someone in the Add PNM tab.")
 
-            ig_display = f"@{p['ig']}" if p.get("ig") else "—"
-            ig_url = f"https://instagram.com/{p['ig']}" if p.get("ig") else None
-            meta_parts = [x for x in [p.get("hs"), p.get("city"), p.get("major")] if x]
-            meta_str = "  ·  ".join(meta_parts) if meta_parts else ""
-            badge_html = status_badge(p.get("dm_status", "—"))
+    for p in visible:
+        real_idx = next((i for i, x in enumerate(st.session_state.pnms) if x["id"] == p["id"]), None)
+        if real_idx is None:
+            continue
 
-            # Card header
-            st.markdown(f"""
-            <div class="pnm-card">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:6px">
-                <div>
-                  <div class="pnm-name">{p.get('fname','')} {p.get('lname','')}</div>
-                  {'<a class="pnm-ig" href="' + ig_url + '" target="_blank">' + ig_display + ' ↗</a>' if ig_url else f'<div class="pnm-meta">{ig_display}</div>'}
-                  {'<div class="pnm-meta">' + meta_str + '</div>' if meta_str else ''}
-                </div>
-                <div style="display:flex;align-items:center;gap:8px">
-                  {badge_html}
-                </div>
-              </div>
+        ig_url = f"https://instagram.com/{p['ig']}" if p.get("ig") else None
+        ig_display = f"@{p['ig']}" if p.get("ig") else "—"
+        meta_parts = [x for x in [p.get("hs"), p.get("city"), p.get("major")] if x]
+        meta_str = "  ·  ".join(meta_parts) if meta_parts else ""
+
+        st.markdown(f"""
+        <div class="pnm-card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:6px">
+            <div>
+              <div class="pnm-name">{p.get('fname','')} {p.get('lname','')}</div>
+              {'<a class="pnm-ig" href="' + ig_url + '" target="_blank">' + ig_display + ' ↗</a>' if ig_url else f'<div class="pnm-meta">{ig_display}</div>'}
+              {'<div class="pnm-meta">' + meta_str + '</div>' if meta_str else ''}
             </div>
-            """, unsafe_allow_html=True)
+            <div>{status_badge(p.get("dm_status","—"))}</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-            # Controls
-            c1, c2, c3, c4, c5 = st.columns([1.2, 1.8, 2.5, 1, 1])
+        c1, c2, c3, c4, c5 = st.columns([1.2, 1.8, 2.5, 1, 1])
 
-            with c1:
-                reached_val = st.checkbox(
-                    "Reached out",
-                    value=p.get("reached", False),
-                    key=f"reached_{p['id']}"
-                )
-                if reached_val != p.get("reached", False):
-                    st.session_state.pnms[real_idx]["reached"] = reached_val
-                    save(st.session_state.pnms)
-                    st.rerun()
+        with c1:
+            reached_val = st.checkbox("Reached out", value=p.get("reached", False), key=f"reached_{p['id']}")
+            if reached_val != p.get("reached", False):
+                st.session_state.pnms[real_idx]["reached"] = reached_val
+                save(st.session_state.pnms)
+                st.rerun()
 
-            with c2:
-                cur_status = p.get("dm_status", "—")
-                new_status = st.selectbox(
-                    "DM Status",
-                    STATUS_OPTS,
-                    index=STATUS_OPTS.index(cur_status) if cur_status in STATUS_OPTS else 0,
-                    key=f"status_{p['id']}",
-                    label_visibility="collapsed"
-                )
-                if new_status != cur_status:
-                    st.session_state.pnms[real_idx]["dm_status"] = new_status
-                    if new_status != "—":
-                        st.session_state.pnms[real_idx]["reached"] = True
-                    save(st.session_state.pnms)
-                    st.rerun()
+        with c2:
+            cur_status = p.get("dm_status", "—")
+            new_status = st.selectbox("DM Status", STATUS_OPTS,
+                index=STATUS_OPTS.index(cur_status) if cur_status in STATUS_OPTS else 0,
+                key=f"status_{p['id']}", label_visibility="collapsed")
+            if new_status != cur_status:
+                st.session_state.pnms[real_idx]["dm_status"] = new_status
+                if new_status != "—":
+                    st.session_state.pnms[real_idx]["reached"] = True
+                save(st.session_state.pnms)
+                st.rerun()
 
-            with c3:
-                notes_val = st.text_input(
-                    "Notes",
-                    value=p.get("notes", ""),
-                    placeholder="Add a note...",
-                    key=f"notes_{p['id']}",
-                    label_visibility="collapsed"
-                )
-                if notes_val != p.get("notes", ""):
-                    st.session_state.pnms[real_idx]["notes"] = notes_val
-                    save(st.session_state.pnms)
+        with c3:
+            notes_val = st.text_input("Notes", value=p.get("notes",""),
+                placeholder="Add a note...", key=f"notes_{p['id']}", label_visibility="collapsed")
+            if notes_val != p.get("notes",""):
+                st.session_state.pnms[real_idx]["notes"] = notes_val
+                save(st.session_state.pnms)
 
-            with c4:
-                with st.expander("Details"):
-                    st.caption(f"**High School:** {p.get('hs') or '—'}")
-                    st.caption(f"**Hometown:** {p.get('city') or '—'}")
-                    st.caption(f"**Major:** {p.get('major') or '—'}")
-                    st.caption(f"**Activities:** {p.get('activities') or '—'}")
-                    st.caption(f"**Interests:** {p.get('interests') or '—'}")
-                    st.caption(f"**Added:** {p.get('added') or '—'}")
+        with c4:
+            with st.expander("Details"):
+                st.caption(f"**High School:** {p.get('hs') or '—'}")
+                st.caption(f"**Hometown:** {p.get('city') or '—'}")
+                st.caption(f"**Major:** {p.get('major') or '—'}")
+                st.caption(f"**Activities:** {p.get('activities') or '—'}")
+                st.caption(f"**Interests:** {p.get('interests') or '—'}")
+                st.caption(f"**Added:** {p.get('added') or '—'}")
 
-            with c5:
-                if st.button("🗑", key=f"del_{p['id']}", help="Remove this PNM"):
-                    st.session_state.pnms = [x for x in st.session_state.pnms if x["id"] != p["id"]]
-                    save(st.session_state.pnms)
-                    st.rerun()
+        with c5:
+            if st.button("🗑", key=f"del_{p['id']}", help="Remove this PNM"):
+                st.session_state.pnms = [x for x in st.session_state.pnms if x["id"] != p["id"]]
+                st.session_state.selected_ids.discard(p["id"])
+                save(st.session_state.pnms)
+                st.rerun()
 
-            st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 2 — ADD PNM
@@ -340,31 +274,21 @@ with tab_add:
 
     with st.form("add_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
-        with c1:
-            fname = st.text_input("First name *", placeholder="Jake")
-        with c2:
-            lname = st.text_input("Last name *", placeholder="Smith")
-        with c3:
-            ig = st.text_input("Instagram handle", placeholder="@jakesmith")
+        with c1: fname = st.text_input("First name *", placeholder="Jake")
+        with c2: lname = st.text_input("Last name *", placeholder="Smith")
+        with c3: ig    = st.text_input("Instagram handle", placeholder="@jakesmith")
 
         c4, c5, c6 = st.columns(3)
-        with c4:
-            hs = st.text_input("High school", placeholder="Waukesha South HS")
-        with c5:
-            city = st.text_input("Hometown", placeholder="Waukesha, WI")
-        with c6:
-            major = st.text_input("Intended major", placeholder="Business")
+        with c4: hs    = st.text_input("High school", placeholder="Waukesha South HS")
+        with c5: city  = st.text_input("Hometown", placeholder="Waukesha, WI")
+        with c6: major = st.text_input("Intended major", placeholder="Business")
 
         c7, c8, c9 = st.columns(3)
-        with c7:
-            activities = st.text_input("Sports / activities", placeholder="Football, NHS")
-        with c8:
-            interests = st.text_input("Interests", placeholder="Finance, outdoors, golf")
-        with c9:
-            dm_status = st.selectbox("DM Status", STATUS_OPTS)
+        with c7: activities = st.text_input("Sports / activities", placeholder="Football, NHS")
+        with c8: interests  = st.text_input("Interests", placeholder="Finance, outdoors, golf")
+        with c9: dm_status  = st.selectbox("DM Status", STATUS_OPTS)
 
         notes = st.text_area("Notes", placeholder="Mutual connections, events attended, anything useful...", height=90)
-
         submitted = st.form_submit_button("Add to database", type="primary", use_container_width=True)
 
         if submitted:
@@ -372,19 +296,12 @@ with tab_add:
                 st.error("First and last name are required.")
             else:
                 entry = {
-                    "id":         new_id(),
-                    "fname":      fname.strip(),
-                    "lname":      lname.strip(),
-                    "ig":         ig.strip().lstrip("@"),
-                    "hs":         hs.strip(),
-                    "city":       city.strip(),
-                    "major":      major.strip(),
-                    "activities": activities.strip(),
-                    "interests":  interests.strip(),
-                    "notes":      notes.strip(),
-                    "dm_status":  dm_status,
-                    "reached":    dm_status != "—",
-                    "added":      datetime.datetime.now().strftime("%m/%d/%Y"),
+                    "id": new_id(), "fname": fname.strip(), "lname": lname.strip(),
+                    "ig": ig.strip().lstrip("@"), "hs": hs.strip(), "city": city.strip(),
+                    "major": major.strip(), "activities": activities.strip(),
+                    "interests": interests.strip(), "notes": notes.strip(),
+                    "dm_status": dm_status, "reached": dm_status != "—",
+                    "added": datetime.datetime.now().strftime("%m/%d/%Y"),
                 }
                 st.session_state.pnms.append(entry)
                 save(st.session_state.pnms)
@@ -392,12 +309,114 @@ with tab_add:
                 st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB 3 — IMPORT / EXPORT
+# TAB 3 — MASS DELETE
+# ════════════════════════════════════════════════════════════════════════════
+with tab_bulk:
+    st.markdown('<div class="section-hdr">Mass Delete</div>', unsafe_allow_html=True)
+
+    if not st.session_state.pnms:
+        st.info("No PNMs in the database yet.")
+    else:
+        # ── Quick-select buttons ──────────────────────────────────────────
+        st.markdown("**Select who to delete**, then hit the red button at the bottom.")
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+
+        qa, qb, qc, qd, qe = st.columns(5)
+        with qa:
+            if st.button("✅ Select all", use_container_width=True):
+                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms}
+                st.rerun()
+        with qb:
+            if st.button("☐ Deselect all", use_container_width=True):
+                st.session_state.selected_ids = set()
+                st.rerun()
+        with qc:
+            if st.button("📬 Select responded", use_container_width=True):
+                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if p.get("dm_status") == "Responded"}
+                st.rerun()
+        with qd:
+            if st.button("❌ Select not interested", use_container_width=True):
+                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if not p.get("reached") and p.get("dm_status","—") == "—"}
+                st.rerun()
+        with qe:
+            if st.button("⏳ Select waiting", use_container_width=True):
+                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if p.get("dm_status") == "Waiting on response"}
+                st.rerun()
+
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+        # ── Checkbox list ─────────────────────────────────────────────────
+        sorted_pnms = sorted(st.session_state.pnms, key=lambda p: (p.get("lname",""), p.get("fname","")))
+
+        for p in sorted_pnms:
+            ig_txt = f" · @{p['ig']}" if p.get("ig") else ""
+            meta   = f" · {p.get('hs','')}" if p.get("hs") else ""
+            label  = f"**{p.get('fname','')} {p.get('lname','')}**{ig_txt}{meta}"
+            badge  = STATUS_BADGE.get(p.get("dm_status","—"), ("badge-none","—"))[1]
+
+            col_chk, col_lbl, col_badge = st.columns([0.3, 4, 1.2])
+            with col_chk:
+                checked = st.checkbox("", value=p["id"] in st.session_state.selected_ids,
+                                      key=f"bulk_{p['id']}", label_visibility="collapsed")
+                if checked:
+                    st.session_state.selected_ids.add(p["id"])
+                else:
+                    st.session_state.selected_ids.discard(p["id"])
+            with col_lbl:
+                st.markdown(f"<div style='padding-top:6px;font-size:14px'>{label}</div>", unsafe_allow_html=True)
+            with col_badge:
+                cls = STATUS_BADGE.get(p.get("dm_status","—"), ("badge-none","—"))[0]
+                st.markdown(f"<div style='padding-top:6px'><span class='badge {cls}'>{badge}</span></div>", unsafe_allow_html=True)
+
+        # ── Delete bar ────────────────────────────────────────────────────
+        n_selected = len(st.session_state.selected_ids)
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+
+        st.markdown(f"""
+        <div class="delete-zone">
+          <div class="delete-zone-title">⚠️ Danger zone</div>
+          <div class="delete-zone-sub">
+            {n_selected} PNM{'s' if n_selected != 1 else ''} selected.
+            {'Select at least one PNM above to delete.' if n_selected == 0 else 'This cannot be undone — export a CSV backup first if needed.'}
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if n_selected > 0:
+            # Two-step confirm
+            if not st.session_state.confirm_delete:
+                if st.button(f"🗑️  Delete {n_selected} selected PNM{'s' if n_selected != 1 else ''}",
+                             type="primary", use_container_width=True):
+                    st.session_state.confirm_delete = True
+                    st.rerun()
+            else:
+                st.error(f"⚠️ Are you sure? This will permanently delete **{n_selected} PNM{'s' if n_selected != 1 else ''}** and cannot be undone.")
+                col_yes, col_no = st.columns(2)
+                with col_yes:
+                    if st.button("Yes, delete them", type="primary", use_container_width=True):
+                        st.session_state.pnms = [
+                            p for p in st.session_state.pnms
+                            if p["id"] not in st.session_state.selected_ids
+                        ]
+                        save(st.session_state.pnms)
+                        deleted = n_selected
+                        st.session_state.selected_ids = set()
+                        st.session_state.confirm_delete = False
+                        st.success(f"✅ {deleted} PNM{'s' if deleted != 1 else ''} deleted.")
+                        st.rerun()
+                with col_no:
+                    if st.button("Cancel", use_container_width=True):
+                        st.session_state.confirm_delete = False
+                        st.rerun()
+        else:
+            st.button("🗑️  Delete selected", disabled=True, use_container_width=True)
+
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 4 — IMPORT / EXPORT
 # ════════════════════════════════════════════════════════════════════════════
 with tab_import:
     col_exp, col_imp = st.columns(2)
 
-    # ── Export ──
     with col_exp:
         st.markdown('<div class="section-hdr">Export to CSV</div>', unsafe_allow_html=True)
         st.markdown("Download the full database as a spreadsheet. Open in Google Sheets or Excel.")
@@ -407,69 +426,54 @@ with tab_import:
             for p in st.session_state.pnms:
                 ig_h = p.get("ig","")
                 rows.append({
-                    "First Name":      p.get("fname",""),
-                    "Last Name":       p.get("lname",""),
+                    "First Name":       p.get("fname",""),
+                    "Last Name":        p.get("lname",""),
                     "Instagram Handle": f"@{ig_h}" if ig_h else "",
-                    "Instagram URL":   f"https://instagram.com/{ig_h}" if ig_h else "",
-                    "High School":     p.get("hs",""),
-                    "Hometown":        p.get("city",""),
-                    "Major":           p.get("major",""),
-                    "Activities":      p.get("activities",""),
-                    "Interests":       p.get("interests",""),
-                    "Notes":           p.get("notes",""),
-                    "Reached Out":     "Yes" if p.get("reached") else "No",
-                    "DM Status":       p.get("dm_status","—"),
-                    "Date Added":      p.get("added",""),
+                    "Instagram URL":    f"https://instagram.com/{ig_h}" if ig_h else "",
+                    "High School":      p.get("hs",""),
+                    "Hometown":         p.get("city",""),
+                    "Major":            p.get("major",""),
+                    "Activities":       p.get("activities",""),
+                    "Interests":        p.get("interests",""),
+                    "Notes":            p.get("notes",""),
+                    "Reached Out":      "Yes" if p.get("reached") else "No",
+                    "DM Status":        p.get("dm_status","—"),
+                    "Date Added":       p.get("added",""),
                 })
             df = pd.DataFrame(rows)
-            csv_bytes = df.to_csv(index=False).encode()
-            st.download_button(
-                "⬇️  Download CSV",
-                data=csv_bytes,
-                file_name="sigep_recruitment_fall2026.csv",
-                mime="text/csv",
-                use_container_width=True,
-                type="primary",
-            )
+            st.download_button("⬇️  Download CSV", data=df.to_csv(index=False).encode(),
+                file_name="sigep_recruitment_fall2026.csv", mime="text/csv",
+                use_container_width=True, type="primary")
         else:
             st.info("No PNMs to export yet.")
 
-    # ── Import ──
     with col_imp:
         st.markdown('<div class="section-hdr">Import from CSV</div>', unsafe_allow_html=True)
-        st.markdown("Upload a CSV exported from this app, or a spreadsheet with columns: First Name, Last Name, Instagram Handle.")
+        st.markdown("Upload a CSV exported from this app, or any spreadsheet with First Name, Last Name, Instagram Handle columns.")
 
         uploaded = st.file_uploader("Choose CSV file", type=["csv"], label_visibility="collapsed")
         if uploaded:
             try:
                 df_in = pd.read_csv(uploaded)
                 df_in.columns = [c.strip() for c in df_in.columns]
-                status_map = {
-                    "Waiting on response": "Waiting on response",
-                    "Read": "Read",
-                    "Responded": "Responded",
-                }
+                status_map = {"Waiting on response":"Waiting on response","Read":"Read","Responded":"Responded"}
                 added_count = 0
                 for _, row in df_in.iterrows():
-                    fname_i = str(row.get("First Name","")).strip()
-                    lname_i = str(row.get("Last Name","")).strip()
-                    if not fname_i or not lname_i or fname_i == "nan":
-                        continue
+                    fn = str(row.get("First Name","")).strip()
+                    ln = str(row.get("Last Name","")).strip()
+                    if not fn or not ln or fn == "nan": continue
                     ig_i = str(row.get("Instagram Handle","")).strip().lstrip("@")
                     if ig_i == "nan": ig_i = ""
-                    dm_i = status_map.get(str(row.get("DM Status","")).strip(), "—")
                     entry = {
                         "id":         new_id() + str(added_count),
-                        "fname":      fname_i,
-                        "lname":      lname_i,
-                        "ig":         ig_i,
+                        "fname":      fn, "lname": ln, "ig": ig_i,
                         "hs":         str(row.get("High School","")).strip().replace("nan",""),
                         "city":       str(row.get("Hometown","")).strip().replace("nan",""),
                         "major":      str(row.get("Major","")).strip().replace("nan",""),
                         "activities": str(row.get("Activities","")).strip().replace("nan",""),
                         "interests":  str(row.get("Interests","")).strip().replace("nan",""),
                         "notes":      str(row.get("Notes","")).strip().replace("nan",""),
-                        "dm_status":  dm_i,
+                        "dm_status":  status_map.get(str(row.get("DM Status","")).strip(), "—"),
                         "reached":    str(row.get("Reached Out","")).strip().lower() == "yes",
                         "added":      str(row.get("Date Added", datetime.datetime.now().strftime("%m/%d/%Y"))).strip(),
                     }
