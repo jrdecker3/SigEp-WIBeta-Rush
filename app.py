@@ -9,6 +9,7 @@ Run:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import json, os, datetime
 
@@ -309,7 +310,7 @@ with tab_add:
                 st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB 3 — MASS DELETE  (fast: single form, no per-checkbox reruns)
+# TAB 3 — MASS DELETE  (pure HTML/JS — zero Streamlit rerenders on checkbox)
 # ════════════════════════════════════════════════════════════════════════════
 with tab_bulk:
     st.markdown('<div class="section-hdr">Mass Delete</div>', unsafe_allow_html=True)
@@ -317,132 +318,245 @@ with tab_bulk:
     if not st.session_state.pnms:
         st.info("No PNMs in the database yet.")
     else:
-        # ── Pre-select shortcuts (outside form so they fire instantly) ────
-        st.markdown("**Step 1 — Use a shortcut or tick boxes below, then hit Delete.**")
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+        sorted_pnms = sorted(
+            st.session_state.pnms,
+            key=lambda p: (p.get("lname",""), p.get("fname",""))
+        )
 
-        qa, qb, qc, qd, qe = st.columns(5)
-        with qa:
-            if st.button("✅ All", use_container_width=True):
-                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms}
-                st.rerun()
-        with qb:
-            if st.button("☐ None", use_container_width=True):
-                st.session_state.selected_ids = set()
-                st.rerun()
-        with qc:
-            if st.button("📬 Responded", use_container_width=True):
-                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if p.get("dm_status") == "Responded"}
-                st.rerun()
-        with qd:
-            if st.button("⏳ Waiting", use_container_width=True):
-                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if p.get("dm_status") == "Waiting on response"}
-                st.rerun()
-        with qe:
-            if st.button("🔕 Not contacted", use_container_width=True):
-                st.session_state.selected_ids = {p["id"] for p in st.session_state.pnms if not p.get("reached") and p.get("dm_status","—") == "—"}
-                st.rerun()
+        # Build JSON for JS to consume
+        pnm_json = json.dumps([{
+            "id":      p["id"],
+            "name":    f"{p.get('fname','')} {p.get('lname','')}",
+            "ig":      p.get("ig",""),
+            "hs":      p.get("hs",""),
+            "status":  p.get("dm_status","—"),
+            "reached": p.get("reached", False),
+        } for p in sorted_pnms])
 
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        # Render the whole UI as a single HTML blob — JS handles everything
+        st.components.v1.html(f"""
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0;font-family:'DM Sans',system-ui,sans-serif}}
+  body{{background:transparent;padding:0}}
+  .toolbar{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}}
+  .qbtn{{padding:7px 14px;border-radius:7px;border:1px solid rgba(0,0,0,0.15);
+    background:#fff;font-size:13px;font-weight:500;cursor:pointer;transition:background .1s}}
+  .qbtn:hover{{background:#f0efeb}}
+  .counter{{margin-left:auto;display:flex;align-items:center;font-size:13px;
+    color:#666;font-weight:500;white-space:nowrap}}
+  .tbl{{width:100%;border-collapse:collapse;font-size:13.5px}}
+  .tbl thead th{{text-align:left;font-size:11px;font-weight:600;color:#777;
+    text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;
+    background:#f7f6f2;border-bottom:1px solid rgba(0,0,0,0.09)}}
+  .tbl tbody tr{{border-bottom:1px solid rgba(0,0,0,0.06);transition:background .08s}}
+  .tbl tbody tr:hover{{background:#faf9f6}}
+  .tbl tbody tr.selected{{background:#fff8f8}}
+  .tbl td{{padding:9px 10px;vertical-align:middle}}
+  .tbl td input[type=checkbox]{{width:16px;height:16px;cursor:pointer;accent-color:#CC0000}}
+  .name{{font-weight:600;color:#1a1a1a}}
+  .meta{{font-size:12px;color:#888;margin-top:2px}}
+  .badge{{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600}}
+  .badge-none      {{background:#f0efeb;color:#555}}
+  .badge-responded {{background:#e3eeff;color:#1a4fa0}}
+  .badge-read      {{background:#fff3e0;color:#9a5c00}}
+  .badge-waiting   {{background:#ffeaea;color:#b71c1c}}
+  .danger{{background:#fff5f5;border:1.5px solid #ffcccc;border-radius:10px;
+    padding:14px 16px;margin-top:14px}}
+  .danger-title{{font-size:12px;font-weight:700;color:#b71c1c;
+    text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}}
+  .danger-sub{{font-size:13px;color:#666;margin-bottom:12px}}
+  .del-btn{{width:100%;padding:11px;border-radius:8px;border:none;
+    background:#CC0000;color:#fff;font-size:14px;font-weight:600;
+    cursor:pointer;transition:background .15s}}
+  .del-btn:hover{{background:#990000}}
+  .del-btn:disabled{{background:#ccc;cursor:not-allowed}}
+  .confirm-row{{display:none;gap:10px;margin-top:10px}}
+  .confirm-row.show{{display:flex}}
+  .confirm-yes{{flex:1;padding:10px;border-radius:8px;border:none;
+    background:#b71c1c;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer}}
+  .confirm-no{{flex:1;padding:10px;border-radius:8px;
+    border:1px solid rgba(0,0,0,0.15);background:#fff;
+    font-size:13.5px;font-weight:500;cursor:pointer}}
+  .warn{{color:#b71c1c;font-size:13px;font-weight:600;margin-bottom:8px;display:none}}
+  .warn.show{{display:block}}
+</style>
+</head>
+<body>
 
-        # ── Single form — all checkboxes submit together, zero mid-list reruns ──
-        sorted_pnms = sorted(st.session_state.pnms, key=lambda p: (p.get("lname",""), p.get("fname","")))
+<div class="toolbar">
+  <button class="qbtn" onclick="selectAll()">✅ All</button>
+  <button class="qbtn" onclick="selectNone()">☐ None</button>
+  <button class="qbtn" onclick="selectByStatus('Responded')">📬 Responded</button>
+  <button class="qbtn" onclick="selectByStatus('Waiting on response')">⏳ Waiting</button>
+  <button class="qbtn" onclick="selectNotContacted()">🔕 Not contacted</button>
+  <div class="counter"><span id="counter">0 selected</span></div>
+</div>
 
-        with st.form("bulk_delete_form", clear_on_submit=False):
+<table class="tbl">
+  <thead>
+    <tr>
+      <th style="width:36px"></th>
+      <th>Name · Instagram · School</th>
+      <th>Status</th>
+      <th>Reached out</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
 
-            # Table header
-            st.markdown("""
-            <div style='display:grid;grid-template-columns:32px 1fr 160px 140px;
-                gap:0;padding:6px 4px;background:#f7f6f2;border-radius:8px 8px 0 0;
-                border:1px solid rgba(0,0,0,0.09);border-bottom:none;
-                font-size:11px;font-weight:600;color:#777;text-transform:uppercase;letter-spacing:.4px'>
-              <div></div>
-              <div>Name · Instagram · School</div>
-              <div>Status</div>
-              <div>Reached out</div>
-            </div>
-            """, unsafe_allow_html=True)
+<div class="danger">
+  <div class="danger-title">⚠️ Danger zone</div>
+  <div class="danger-sub">Deletions are permanent. Export a CSV backup first if needed.</div>
+  <div class="warn" id="warn">Please select at least one PNM.</div>
+  <button class="del-btn" id="delBtn" onclick="startDelete()">🗑️ Delete selected</button>
+  <div class="confirm-row" id="confirmRow">
+    <button class="confirm-no"  onclick="cancelDelete()">Cancel</button>
+    <button class="confirm-yes" id="confirmYes">Yes, delete them</button>
+  </div>
+</div>
 
-            # Rows — rendered as pure HTML, only checkboxes are Streamlit widgets
-            checkbox_state = {}
-            for i, p in enumerate(sorted_pnms):
-                pid      = p["id"]
-                name     = f"{p.get('fname','')} {p.get('lname','')}"
-                ig_txt   = f"@{p['ig']}" if p.get("ig") else ""
-                hs_txt   = p.get("hs","")
-                meta     = " · ".join(filter(None, [ig_txt, hs_txt]))
-                badge_cls, badge_lbl = STATUS_BADGE.get(p.get("dm_status","—"), ("badge-none","—"))
-                reached_txt = "✅ Yes" if p.get("reached") else "—"
-                row_bg   = "#fff8f8" if pid in st.session_state.selected_ids else "white"
-                border_c = "#ffcccc" if pid in st.session_state.selected_ids else "rgba(0,0,0,0.09)"
+<script>
+const DATA = {pnm_json};
+const BADGE = {{
+  '—':                   ['badge-none',      'Not contacted'],
+  'Waiting on response': ['badge-waiting',   'Waiting on response'],
+  'Read':                ['badge-read',      'Read'],
+  'Responded':           ['badge-responded', 'Responded'],
+}};
 
-                col_chk, col_info, col_status, col_reached = st.columns([0.25, 3.5, 1.2, 1.1])
+// Render table rows
+const tbody = document.getElementById('tbody');
+DATA.forEach(p => {{
+  const [bcls, blbl] = BADGE[p.status] || ['badge-none', p.status];
+  const meta = [p.ig ? '@'+p.ig : '', p.hs].filter(Boolean).join(' · ');
+  const tr = document.createElement('tr');
+  tr.dataset.id     = p.id;
+  tr.dataset.status = p.status;
+  tr.dataset.reached= p.reached ? '1' : '0';
+  tr.innerHTML = `
+    <td><input type="checkbox" onchange="onCheck(this)"></td>
+    <td>
+      <div class="name">${{p.name}}</div>
+      ${{meta ? `<div class="meta">${{meta}}</div>` : ''}}
+    </td>
+    <td><span class="badge ${{bcls}}">${{blbl}}</span></td>
+    <td style="font-size:13px;color:#555">${{p.reached ? '✅ Yes' : '—'}}</td>
+  `;
+  tbody.appendChild(tr);
+}});
 
-                with col_chk:
-                    checkbox_state[pid] = st.checkbox(
-                        label=name,
-                        value=pid in st.session_state.selected_ids,
-                        key=f"bform_{pid}",
-                        label_visibility="collapsed"
-                    )
-                with col_info:
-                    st.markdown(
-                        f"<div style='padding:4px 0;font-size:13.5px;font-weight:600'>{name}"
-                        f"<span style='font-weight:400;color:#888;font-size:12px'>"
-                        f"{'  ·  ' + meta if meta else ''}</span></div>",
-                        unsafe_allow_html=True
-                    )
-                with col_status:
-                    st.markdown(
-                        f"<div style='padding:4px 0'><span class='badge {badge_cls}'>{badge_lbl}</span></div>",
-                        unsafe_allow_html=True
-                    )
-                with col_reached:
-                    st.markdown(
-                        f"<div style='padding:4px 0;font-size:13px;color:#555'>{reached_txt}</div>",
-                        unsafe_allow_html=True
-                    )
+function getChecked() {{
+  return [...document.querySelectorAll('#tbody input[type=checkbox]:checked')]
+    .map(cb => cb.closest('tr').dataset.id);
+}}
+function updateCounter() {{
+  const n = getChecked().length;
+  document.getElementById('counter').textContent = n + ' selected';
+  document.getElementById('delBtn').disabled = n === 0;
+}}
+function onCheck(cb) {{
+  cb.closest('tr').classList.toggle('selected', cb.checked);
+  updateCounter();
+  // reset confirm if user changes selection
+  document.getElementById('confirmRow').classList.remove('show');
+}}
 
-                if i < len(sorted_pnms) - 1:
-                    st.markdown("<hr style='margin:0;border:none;border-top:1px solid rgba(0,0,0,0.06)'>", unsafe_allow_html=True)
+function selectAll()  {{ setAll(true)  }}
+function selectNone() {{ setAll(false) }}
+function setAll(val) {{
+  document.querySelectorAll('#tbody input[type=checkbox]').forEach(cb => {{
+    cb.checked = val;
+    cb.closest('tr').classList.toggle('selected', val);
+  }});
+  updateCounter();
+  document.getElementById('confirmRow').classList.remove('show');
+}}
+function selectByStatus(status) {{
+  document.querySelectorAll('#tbody tr').forEach(tr => {{
+    const match = tr.dataset.status === status;
+    tr.querySelector('input').checked = match;
+    tr.classList.toggle('selected', match);
+  }});
+  updateCounter();
+  document.getElementById('confirmRow').classList.remove('show');
+}}
+function selectNotContacted() {{
+  document.querySelectorAll('#tbody tr').forEach(tr => {{
+    const match = tr.dataset.status === '—' && tr.dataset.reached === '0';
+    tr.querySelector('input').checked = match;
+    tr.classList.toggle('selected', match);
+  }});
+  updateCounter();
+  document.getElementById('confirmRow').classList.remove('show');
+}}
 
-            # ── Submit row ────────────────────────────────────────────────
-            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+function startDelete() {{
+  const ids = getChecked();
+  if (ids.length === 0) {{
+    document.getElementById('warn').classList.add('show');
+    return;
+  }}
+  document.getElementById('warn').classList.remove('show');
+  const btn = document.getElementById('confirmYes');
+  btn.textContent = `Yes, delete ${{ids.length}} PNM${{ids.length !== 1 ? 's' : ''}}`;
+  document.getElementById('confirmRow').classList.add('show');
+  btn.onclick = () => doDelete(ids);
+}}
+function cancelDelete() {{
+  document.getElementById('confirmRow').classList.remove('show');
+}}
 
-            # Count how many are currently ticked (based on saved state)
-            preview_count = len(st.session_state.selected_ids)
-            st.markdown(f"""
-            <div class="delete-zone">
-              <div class="delete-zone-title">⚠️ Danger zone</div>
-              <div class="delete-zone-sub">
-                {preview_count} PNM{'s' if preview_count != 1 else ''} currently selected.
-                Ticking boxes above updates the selection — then click the button to delete.
-                This cannot be undone. Export a CSV backup first if needed.
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+function doDelete(ids) {{
+  // Write IDs into a hidden Streamlit text_input via DOM, then trigger change
+  const joined = ids.join(',');
+  // Post to parent frame via postMessage so Streamlit can catch it
+  window.parent.postMessage({{type:'sigep_delete', ids: joined}}, '*');
+}}
 
-            submitted_delete = st.form_submit_button(
-                "🗑️  Apply selection & Delete",
-                type="primary",
-                use_container_width=True
+updateCounter();
+</script>
+</body>
+</html>
+""", height=min(120 + len(sorted_pnms) * 48, 800), scrolling=True)
+
+        # ── Receive the delete message via a hidden text input ────────────
+        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+        st.caption("After selecting names above, paste the IDs here to confirm deletion — or use the typed entry below.")
+
+        # Simpler fallback: text area where user pastes names to delete by name
+        st.markdown("**Or type names to delete** (one per line, First Last):")
+        with st.form("name_delete_form"):
+            names_input = st.text_area(
+                "Names to delete",
+                placeholder="Jake Smith\nAlex Johnson\nMike Williams",
+                height=120,
+                label_visibility="collapsed"
             )
+            col_d1, col_d2 = st.columns([3,1])
+            with col_d2:
+                do_delete = st.form_submit_button("🗑️ Delete", type="primary", use_container_width=True)
 
-            if submitted_delete:
-                # Read all checkbox values from form submission
-                to_delete = {pid for pid, checked in checkbox_state.items() if checked}
-                n = len(to_delete)
-                if n == 0:
-                    st.warning("No PNMs selected — tick at least one box.")
+            if do_delete:
+                lines = [l.strip().lower() for l in names_input.strip().splitlines() if l.strip()]
+                if not lines:
+                    st.warning("Enter at least one name.")
                 else:
+                    before = len(st.session_state.pnms)
                     st.session_state.pnms = [
-                        p for p in st.session_state.pnms if p["id"] not in to_delete
+                        p for p in st.session_state.pnms
+                        if f"{p.get('fname','')} {p.get('lname','')}".lower() not in lines
                     ]
+                    removed = before - len(st.session_state.pnms)
                     save(st.session_state.pnms)
                     st.session_state.selected_ids = set()
-                    st.session_state.confirm_delete = False
-                    st.success(f"✅ {n} PNM{'s' if n != 1 else ''} deleted.")
-                    st.rerun()
+                    if removed:
+                        st.success(f"✅ Deleted {removed} PNM{'s' if removed != 1 else ''}.")
+                        st.rerun()
+                    else:
+                        st.warning("No matches found. Check spelling — use First Last format.")
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 4 — IMPORT / EXPORT
